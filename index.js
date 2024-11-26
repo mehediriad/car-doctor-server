@@ -1,7 +1,7 @@
 import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
 
 dotenv.config()
 
@@ -30,12 +30,48 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+
+    const serviceCollection = client.db("carDoctorDB").collection("services");
+    const bookingCollection = client.db("carDoctorDB").collection("booking");
+
+    app.get("/services", async ( req, res )=>{
+
+        const services = serviceCollection.find();
+        const result = await services.toArray();
+        res.send(result)
+    })
+    app.get("/services/:id", async ( req, res )=>{
+        const id = req.params.id
+        const query = {_id: new ObjectId(id)}
+        
+        const result = await serviceCollection.findOne(query);
+        res.send(result)
+    })
+
+    app.post("/booking",async (req , res)=>{
+        const bookingData = req.body;
+        bookingData.status = "pending"
+        const result = await bookingCollection.insertOne(bookingData)
+        res.send(result)  
+    })
+    app.get("/booking",async (req , res)=>{
+        let query = {}
+      
+      
+        if(req.query?.email){
+          query = {email:req.query?.email}
+        }
+        
+        const result = await bookingCollection.find(query).toArray()
+        res.send(result)  
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
-    await client.close();
+    // await client.close();
   }
 }
 run().catch(console.dir);
