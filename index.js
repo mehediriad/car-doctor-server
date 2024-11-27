@@ -74,6 +74,22 @@ async function run() {
         const result = await bookingCollection.deleteOne(query)
         res.send(result)  
     })
+    app.patch("/booking/:id",async (req , res)=>{
+        
+      const id = req.params.id
+
+      const query = {_id: new ObjectId(id)}
+
+      const updateDoc ={
+          $set:{
+            status:req.body?.status
+          }
+      }
+        console.log(updateDoc);
+        
+        const result = await bookingCollection.updateOne(query,updateDoc)
+        res.send(result)  
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
