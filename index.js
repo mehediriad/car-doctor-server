@@ -4,6 +4,7 @@ import dotenv from "dotenv"
 import jwt from "jsonwebtoken"
 import cookieParser from "cookie-parser"
 import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import axios from "axios"
 
 dotenv.config()
 
@@ -12,6 +13,7 @@ const port = process.env.PORT || 5000;
 const app = express()
 
 app.use(express.json())
+app.use(express.urlencoded())
 app.use(cookieParser())
 app.use(cors({
   origin: ['http://localhost:5173'],
@@ -58,6 +60,116 @@ async function run() {
     const serviceCollection = client.db("carDoctorDB").collection("services");
     const bookingCollection = client.db("carDoctorDB").collection("booking");
 
+
+    app.post("/create-payment/:id", async (req, res) => {
+      const checkOutData = req.body;
+      const bookingId = req.params?.id
+
+      const tnx_id = new ObjectId().toString();
+      const paymentData = {
+        store_id: process.env.STORE_ID,
+        store_passwd: process.env.STORE_KEY,
+        total_amount: parseInt(checkOutData.price) * 125,
+        currency: 'BDT',
+        tran_id: tnx_id,
+        success_url: 'http://localhost:5000/payment-success',
+        fail_url: 'http://localhost:5000/payment-fail',
+        cancel_url: 'http://localhost:5000/payment-cancel',
+        cus_name: 'Customer Name',
+        cus_email: 'cust@yahoo.com',
+        cus_add1: 'Dhaka',
+        cus_add2: 'Dhaka',
+        cus_city: 'Dhaka',
+        cus_state: 'Dhaka',
+        cus_postcode: 1000,
+        cus_country: 'Bangladesh',
+        cus_phone: '01711111111',
+        cus_fax: '01711111111',
+        product_name:"Laptop",
+        product_category:"Laptop",
+        product_profile:"new item",
+        shipping_method:'NO',
+        ship_name: 'Customer Name',
+        ship_add1: 'Dhaka',
+        ship_add2: 'Dhaka',
+        ship_city: 'Dhaka',
+        ship_state: 'Dhaka',
+        ship_postcode: 1000,
+        ship_country: 'Bangladesh',
+        multi_card_name: 'mastercard,visacard,amexcard',
+        value_a: 'ref001_A',
+        value_b: 'ref002_B',
+        value_c: 'ref003_C',
+        value_d: 'ref004_D'
+      };
+
+      const directApiUrl = 'https://sandbox.sslcommerz.com/gwprocess/v4/api.php';
+
+      const response = await axios.post(directApiUrl, paymentData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded', // Ensure it's URL encoded
+        },
+      });
+      
+      const query = {_id:new ObjectId(bookingId)}
+
+      const updateData = {
+        $set:{
+          payment: {
+            paymentStatus: "pending",
+            transactionId: tnx_id
+          }
+        }
+      }
+
+      let result;
+      if(response.data.GatewayPageURL){
+        result = await bookingCollection.updateOne(query,updateData)
+      }
+      
+      if(result?.modifiedCount>0){
+        res.send({redirectURL : response.data.GatewayPageURL})
+      }
+    })
+
+    app.post("/payment-success",async (req , res)=>{
+      const successData = req.body;
+
+      if(successData.status === "VALID"){
+        const query = {"payment.transactionId" : successData.tran_id}
+
+        // const updateData = {
+        //   $set:{
+        //     payment: {
+        //       paymentStatus: "success",
+        //       method: successData.card_issuer
+        //     }
+        //   }
+        // }
+        const updateData = {
+         $set: {"payment.paymentStatus":"success","payment.method":successData.card_issuer}
+        }
+
+
+        
+  
+        const result = await bookingCollection.updateOne(query,updateData)
+        console.log(result);
+        
+      }
+      console.log("successData",successData);
+      
+      res.redirect("http://localhost:5173/payment-success")
+      
+    })
+    app.post("/payment-fail",(req , res)=>{
+      console.log(req.body);
+      
+      res.redirect("http://localhost:5173/payment-fail")
+    })
+    app.post("/payment-cancel",(req , res)=>{
+      res.redirect("http://localhost:5173/payment-cancel")
+    })
     app.post("/jwt", (req, res) => {
       const userInfo = req.body;
 
@@ -90,6 +202,14 @@ async function run() {
       const bookingData = req.body;
       bookingData.status = "pending"
       const result = await bookingCollection.insertOne(bookingData)
+      res.send(result)
+    })
+    app.get("/booking/:uid", async (req, res) => {
+      
+      const uid = req.params?.uid;
+      const query = {_id: new ObjectId(uid)}
+
+      const result = await bookingCollection.findOne(query)
       res.send(result)
     })
     app.get("/booking", verifyToken, async (req, res) => {
