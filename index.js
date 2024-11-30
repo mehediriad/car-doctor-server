@@ -35,21 +35,52 @@ const client = new MongoClient(uri, {
   }
 });
 
-const verifyToken = (req, res, next) => {
+// const verifyToken = (req, res, next) => {
+//   const token = req.cookies.token;
+//   if (!token) {
+//     return res.status(401).send({ message: 'unauthorized' })
+//   }
+
+//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
+//     if (error) {
+//       return res.status(401).send({ message: 'unauthorized' })
+//     }
+//     req.user = decoded
+//     next()
+//   })
+
+
+// }
+
+// app.post("/jwt", (req, res) => {
+//   const userInfo = req.body;
+
+//   const token = jwt.sign(userInfo, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+//   res.cookie("token", token, {
+//     httpOnly: true,
+//     secure: false,
+//     maxAge: 86400 * 1000,
+//   })
+//   res.send({ success: true })
+// })
+
+
+const verifyToken = (req , res ,next) =>{
   const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).send({ message: 'unauthorized' })
+ 
+  
+  if(!token){
+    return res.status(401).send({message:"unauthorized access"})
   }
 
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
-    if (error) {
-      return res.status(401).send({ message: 'unauthorized' })
-    }
-    req.user = decoded
-    next()
+  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET, (error , decoded)=>{
+      if(error){
+        return res.status(401).send({message:"unauthorized access"})
+      }
+      req.body.user = decoded
+      next()
   })
-
-
+  
 }
 
 async function run() {
@@ -59,6 +90,27 @@ async function run() {
 
     const serviceCollection = client.db("carDoctorDB").collection("services");
     const bookingCollection = client.db("carDoctorDB").collection("booking");
+
+
+
+    app.post("/login",async ( req , res )=>{
+      const userData = req.body;
+      const token =  jwt.sign(userData,process.env.ACCESS_TOKEN_SECRET,{expiresIn: '1h'})
+      res.cookie("token",token,{
+        httpOnly:true,
+        secure:true
+      })
+      .send({success:true})
+    })
+    app.post("/logout",async ( req , res )=>{
+      const userData = req.body;
+      
+      res.clearCookie("token",{
+        maxAge:0,
+       
+      })
+      .send({success:true})
+    })
 
 
     app.post("/create-payment/:id", async (req, res) => {
@@ -85,10 +137,10 @@ async function run() {
         cus_country: 'Bangladesh',
         cus_phone: '01711111111',
         cus_fax: '01711111111',
-        product_name:"Laptop",
-        product_category:"Laptop",
-        product_profile:"new item",
-        shipping_method:'NO',
+        product_name: "Laptop",
+        product_category: "Laptop",
+        product_profile: "new item",
+        shipping_method: 'NO',
         ship_name: 'Customer Name',
         ship_add1: 'Dhaka',
         ship_add2: 'Dhaka',
@@ -110,11 +162,11 @@ async function run() {
           'Content-Type': 'application/x-www-form-urlencoded', // Ensure it's URL encoded
         },
       });
-      
-      const query = {_id:new ObjectId(bookingId)}
+
+      const query = { _id: new ObjectId(bookingId) }
 
       const updateData = {
-        $set:{
+        $set: {
           payment: {
             paymentStatus: "pending",
             transactionId: tnx_id
@@ -123,20 +175,20 @@ async function run() {
       }
 
       let result;
-      if(response.data.GatewayPageURL){
-        result = await bookingCollection.updateOne(query,updateData)
+      if (response.data.GatewayPageURL) {
+        result = await bookingCollection.updateOne(query, updateData)
       }
-      
-      if(result?.modifiedCount>0){
-        res.send({redirectURL : response.data.GatewayPageURL})
+
+      if (result?.modifiedCount > 0) {
+        res.send({ redirectURL: response.data.GatewayPageURL })
       }
     })
 
-    app.post("/payment-success",async (req , res)=>{
+    app.post("/payment-success", async (req, res) => {
       const successData = req.body;
 
-      if(successData.status === "VALID"){
-        const query = {"payment.transactionId" : successData.tran_id}
+      if (successData.status === "VALID") {
+        const query = { "payment.transactionId": successData.tran_id }
 
         // const updateData = {
         //   $set:{
@@ -147,40 +199,30 @@ async function run() {
         //   }
         // }
         const updateData = {
-         $set: {"payment.paymentStatus":"success","payment.method":successData.card_issuer}
+          $set: { "payment.paymentStatus": "success", "payment.method": successData.card_issuer }
         }
 
 
-        
-  
-        const result = await bookingCollection.updateOne(query,updateData)
+
+
+        const result = await bookingCollection.updateOne(query, updateData)
         console.log(result);
-        
+
       }
-      console.log("successData",successData);
-      
+      console.log("successData", successData);
+
       res.redirect("http://localhost:5173/payment-success")
-      
+
     })
-    app.post("/payment-fail",(req , res)=>{
+    app.post("/payment-fail", (req, res) => {
       console.log(req.body);
-      
+
       res.redirect("http://localhost:5173/payment-fail")
     })
-    app.post("/payment-cancel",(req , res)=>{
+    app.post("/payment-cancel", (req, res) => {
       res.redirect("http://localhost:5173/payment-cancel")
     })
-    app.post("/jwt", (req, res) => {
-      const userInfo = req.body;
 
-      const token = jwt.sign(userInfo, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: false,
-        maxAge: 86400 * 1000,
-      })
-      res.send({ success: true })
-    })
 
     app.get("/services", async (req, res) => {
 
@@ -204,30 +246,47 @@ async function run() {
       const result = await bookingCollection.insertOne(bookingData)
       res.send(result)
     })
-    app.get("/booking/:uid", async (req, res) => {
-      
+    app.get("/booking/:uid",verifyToken, async (req, res) => {
+
       const uid = req.params?.uid;
-      const query = {_id: new ObjectId(uid)}
+      const query = { _id: new ObjectId(uid) }
 
       const result = await bookingCollection.findOne(query)
       res.send(result)
     })
-    app.get("/booking", verifyToken, async (req, res) => {
+    app.get("/booking",verifyToken, async (req, res) => {
 
-
-
+      const loggedUser = req.body.user?.email
+      const reqUser = req.query?.email
+      
+      
       let query = {}
 
-      if (req.query?.email) {
-        if (req.query?.email !== req?.user?.email) {
-          return res.status(403).send({ message: "forbidden" })
+      if (reqUser) {
+        if(reqUser !== loggedUser){
+          return res.status(403).send({message:"forbidden access"})
         }
-        query = { email: req.query?.email }
-      } else {
-        if (req?.user?.email !== "mhriad.cse@gmail.com") {
-          return res.status(403).send({ message: "forbidden" })
+        query = { email: reqUser }
+      } 
+
+      if(!reqUser){
+        if(loggedUser !== "mhriad.cse@gmail.com"){
+          return res.status(403).send({message:"forbidden access"})
         }
+        
       }
+
+
+      // if (req.query?.email) {
+      //   if (req.query?.email !== req?.user?.email) {
+      //     return res.status(403).send({ message: "forbidden" })
+      //   }
+      //   query = { email: req.query?.email }
+      // } else {
+      //   if (req?.user?.email !== "mhriad.cse@gmail.com") {
+      //     return res.status(403).send({ message: "forbidden" })
+      //   }
+      // }
 
 
 
