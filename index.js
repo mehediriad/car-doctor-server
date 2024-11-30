@@ -16,12 +16,16 @@ app.use(express.json())
 app.use(express.urlencoded())
 app.use(cookieParser())
 app.use(cors({
-  origin: ['http://localhost:5173'],
+  origin: ['https://car-doctor-e2f17.web.app/','https://car-doctor-e2f17.firebaseapp.com/'],
   credentials: true
 }))
 
 
-
+const cookieOptions = {
+  httpOnly:true,
+  secure: process.env.NODE_ENV === 'production' ? true : false,
+  sameSite: process.env.NODE_ENV === 'production' ? "none" : "strict"
+}
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@express-mongo-curd.khcti.mongodb.net/?retryWrites=true&w=majority&appName=express-mongo-curd`;
@@ -86,7 +90,7 @@ const verifyToken = (req , res ,next) =>{
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const serviceCollection = client.db("carDoctorDB").collection("services");
     const bookingCollection = client.db("carDoctorDB").collection("booking");
@@ -96,19 +100,13 @@ async function run() {
     app.post("/login",async ( req , res )=>{
       const userData = req.body;
       const token =  jwt.sign(userData,process.env.ACCESS_TOKEN_SECRET,{expiresIn: '1h'})
-      res.cookie("token",token,{
-        httpOnly:true,
-        secure:true
-      })
+      res.cookie("token",token,cookieOptions)
       .send({success:true})
     })
     app.post("/logout",async ( req , res )=>{
       const userData = req.body;
       
-      res.clearCookie("token",{
-        maxAge:0,
-       
-      })
+      res.clearCookie("token",{...cookieOptions, maxAge:0})
       .send({success:true})
     })
 
@@ -124,9 +122,9 @@ async function run() {
         total_amount: parseInt(checkOutData.price) * 125,
         currency: 'BDT',
         tran_id: tnx_id,
-        success_url: 'http://localhost:5000/payment-success',
-        fail_url: 'http://localhost:5000/payment-fail',
-        cancel_url: 'http://localhost:5000/payment-cancel',
+        success_url: 'https://car-doctor-server-brown-zeta.vercel.app/payment-success',
+        fail_url: 'https://car-doctor-server-brown-zeta.vercel.app/payment-fail',
+        cancel_url: 'https://car-doctor-server-brown-zeta.vercel.app/payment-cancel',
         cus_name: 'Customer Name',
         cus_email: 'cust@yahoo.com',
         cus_add1: 'Dhaka',
@@ -211,16 +209,16 @@ async function run() {
       }
       console.log("successData", successData);
 
-      res.redirect("http://localhost:5173/payment-success")
+      res.redirect("https://car-doctor-e2f17.web.app/payment-success")
 
     })
     app.post("/payment-fail", (req, res) => {
       console.log(req.body);
 
-      res.redirect("http://localhost:5173/payment-fail")
+      res.redirect("https://car-doctor-e2f17.web.app/payment-fail")
     })
     app.post("/payment-cancel", (req, res) => {
-      res.redirect("http://localhost:5173/payment-cancel")
+      res.redirect("https://car-doctor-e2f17.web.app/payment-cancel")
     })
 
 
@@ -320,7 +318,7 @@ async function run() {
     })
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
