@@ -16,7 +16,7 @@ app.use(express.json())
 app.use(express.urlencoded())
 app.use(cookieParser())
 app.use(cors({
-  origin: ['https://car-doctor-e2f17.web.app/','https://car-doctor-e2f17.firebaseapp.com/'],
+  origin: ['https://car-doctor-e2f17.web.app','https://car-doctor-e2f17.firebaseapp.com',"http://localhost:5173"],
   credentials: true
 }))
 
